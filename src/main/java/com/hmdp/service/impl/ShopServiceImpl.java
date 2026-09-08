@@ -17,6 +17,7 @@ import org.springframework.data.geo.GeoResult;
 import org.springframework.data.geo.GeoResults;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,6 +87,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         String visitor = user != null ? String.valueOf(user.getId())
                 : "guest:" + UUID.randomUUID();
         // 日 UV：HyperLogLog 去重统计（误差 0.81%，万级 UV 仅 12KB）
+                // HyperLogLog 天然自动去重，同一用户多次访问仅统计 1 次 UV
         stringRedisTemplate.opsForHyperLogLog().add(RedisConstants.SHOP_UV_KEY + today, visitor);
         // 热度榜：浏览计数
         stringRedisTemplate.opsForZSet().incrementScore(RedisConstants.SHOP_HOT_KEY,
@@ -173,5 +175,34 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         }
         //6.返回
         return Result.ok(shops);
+    }
+
+    @Override
+    public Result queryHotShops(Integer top) {
+        Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
+                .reverseRangeWithScores(RedisConstants.SHOP_HOT_KEY, 0, top - 1);
+        if (tuples == null || tuples.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+        List<Map<String, Object>> result = new ArrayList<>(tuples.size());
+        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+            Long shopId = Long.valueOf(tuple.getValue());
+            Shop shop = getById(shopId);
+            if (shop == null) {
+                continue;
+            }
+            Map<String, Object> item = new HashMap<>();
+            item.put("shopId", shopId);
+            item.put("views", tuple.getScore() == null ? 0 : tuple.getScore().intValue());
+            item.put("shop", shop);
+            result.add(item);
+        }
+        return Result.ok(result);
+    }
+
+    @Override
+    public Long queryUv(String date) {
+        return stringRedisTemplate.opsForHyperLogLog()
+                .size(RedisConstants.SHOP_UV_KEY + date);
     }
 }

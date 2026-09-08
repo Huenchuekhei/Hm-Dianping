@@ -10,6 +10,10 @@ import com.hmdp.utils.SystemConstants;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * <p>
@@ -95,5 +99,27 @@ public class ShopController {
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 返回数据
         return Result.ok(page.getRecords());
+    }
+
+    /**
+     * 热点商铺榜（浏览量 TopN）
+     */
+    @GetMapping("/hot")
+    public Result queryHotShops(@RequestParam(value = "top", defaultValue = "10") Integer top) {
+        return shopService.queryHotShops(top);
+    }
+
+    /**
+     * 当日店铺浏览 UV（HyperLogLog 去重统计）
+     */
+    @GetMapping("/uv")
+    public Result queryUv(@RequestParam(value = "date", required = false) String date) {
+        String day = StrUtil.isNotBlank(date) ? date
+                : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy:MM:dd"));
+        Long uv = shopService.queryUv(day);
+        Map<String, Object> data = new HashMap<>();
+        data.put("date", day);
+        data.put("uv", uv);
+        return Result.ok(data);
     }
 }
