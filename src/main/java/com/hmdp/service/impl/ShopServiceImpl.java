@@ -119,6 +119,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         stringRedisTemplate.delete(CACHE_SHOP_KEY + id);
         // 3.失效本节点 L1 + 广播其他节点失效（多节点 L1 一致性）
         shopLocalCache.invalidate(CACHE_SHOP_KEY + id);
+        // 4.广播失效消息到 RabbitMQ 或 Redis Pub/Sub
         stringRedisTemplate.convertAndSend(RedisConstants.CACHE_EVICT_TOPIC, String.valueOf(id));
         return Result.ok();
     }
